@@ -65,15 +65,48 @@ def main():
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
-    model = vgg.__dict__[args.arch]()
+    # model = vgg.__dict__[args.arch]()
+    # model.features = torch.nn.DataParallel(model.features)
+    import math
+    class Flatten(nn.Module):
+        def forward(self, x):
+            return x.view(x.size(0), -1)
+    model = nn.Sequential(
+        nn.Conv2d(3, 64, 3, stride=2, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(64, 128, 3, stride=2, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(128, 256, 3, stride=1, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(256, 256, 3, stride=2, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(256, 512, 3, stride=1, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(512, 512, 3, stride=2, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(512, 512, 3, stride=1, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(512, 512, 3, stride=2, padding=1),
+        nn.ReLU(),
+        Flatten(),
+        nn.Linear(512,512),
+        nn.ReLU(),
+        nn.Linear(512,512),
+        nn.ReLU(),
+        nn.Linear(512,10)
+    )
+    for m in model.modules():
+        if isinstance(m, nn.Conv2d):
+            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            m.weight.data.normal_(0, math.sqrt(2. / n))
+            m.bias.data.zero_()
 
-    model.features = torch.nn.DataParallel(model.features)
     model.cuda()
 
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
-            print "=> loading checkpoint '{}'".format(args.resume)
+            print ("=> loading checkpoint '{}'").format(args.resume)
             checkpoint = torch.load(args.resume)
             args.start_epoch = checkpoint['epoch']
             best_prec1 = checkpoint['best_prec1']
@@ -81,7 +114,7 @@ def main():
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.evaluate, checkpoint['epoch']))
         else:
-            print "=> no checkpoint found at '{}'".format(args.resume)
+            print ("=> no checkpoint found at '{}'").format(args.resume)
 
     cudnn.benchmark = True
 
